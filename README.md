@@ -78,6 +78,14 @@ MAX_JOBS=8 pip install --no-build-isolation flash-attn
 pip install --no-build-isolation transformer_engine[pytorch]
 ```
 
+## Downloading the Pretrained Checkpoint
+
+We release a 14B pretrained DROID checkpoint on [Huggingface](https://huggingface.co/GEAR-Dreams/DreamZero-DROID). To download the checkpoint, run
+
+```bash
+hf download GEAR-Dreams/DreamZero-DROID --repo-type model --local-dir <path/to/checkpoint>
+```
+
 ## Running the Inference Server
 
 ### Command Overview
@@ -85,7 +93,7 @@ pip install --no-build-isolation transformer_engine[pytorch]
 The inference server uses PyTorch distributed training utilities to parallelize the model across multiple GPUs:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.run --standalone --nproc_per_node=2 socket_test_optimized_AR.py --port 5000 --enable-dit-cache --model-path /path/to/your/checkpoint
+CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.run --standalone --nproc_per_node=2 socket_test_optimized_AR.py --port 5000 --enable-dit-cache --model-path <path/to/checkpoint>
 ```
 
 To verify the server is working, run a test client. The first few inferences will take a few minutes to warm up. After warming up, inference takes ~0.6s on GB200 and ~3s on H100.

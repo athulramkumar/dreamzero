@@ -78,6 +78,7 @@ dependencies = [
     "nvidia-modelopt-core",
     "tensorrt",
     "openpi-client==0.1.1",
+    "huggingface_hub",
 ]
 
 [project.optional-dependencies]

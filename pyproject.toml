@@ -93,7 +93,7 @@ dreamzero-server = "socket_test_optimized_AR:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["dreamzero*"]
+include = ["groot*", "dreamzero*"]
 
 [tool.setuptools]
 include-package-data = true

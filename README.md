@@ -49,6 +49,8 @@ The outputs are saved in `runs` directory.
 
 ## Quick Start
 
+For a **reproducible environment setup** (H100, CUDA 12.9, PyTorch 2.8) and parallel model-weight downloads, see **[SETUP.md](SETUP.md)**.
+
 ### Prerequisites
 
 - **Python**: 3.11

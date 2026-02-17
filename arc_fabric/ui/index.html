@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arc Fabric — DreamZero Trajectory Explorer</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+/* ── Reset & Base ───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f1a;
+  --panel: #16213e;
+  --panel-alt: #1a1a2e;
+  --border: #2a2a4a;
+  --text: #e0e0e8;
+  --text-dim: #8888aa;
+  --accent: #00d2ff;
+  --accent-glow: rgba(0,210,255,0.25);
+  --danger: #ff6b6b;
+  --success: #51cf66;
+  --warn: #ffd43b;
+  --radius: 10px;
+  --transition: 0.25s ease;
+}
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+}
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all var(--transition);
+}
+button:active { transform: scale(0.97); }
+input, select, textarea {
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Header ─────────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  height: 52px;
+}
+.header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  background: linear-gradient(90deg, var(--accent), #cc5de8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
+}
+.header .status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: pulse 2s infinite;
+}
+.status-dot.offline { background: var(--danger); animation: none; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Main Layout ────────────────────────────────────────────── */
+.main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.panel {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width var(--transition);
+}
+.panel:last-child { border-right: none; }
+.panel-header {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* ── Tree Panel (Left) ──────────────────────────────────────── */
+.panel-tree { width: 25%; min-width: 260px; }
+.panel-tree .panel-body { padding: 0; overflow: hidden; }
+#tree-svg { width: 100%; height: 100%; }
+#tree-svg .link {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke var(--transition);
+}
+#tree-svg .node-circle {
+  stroke-width: 2.5;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+#tree-svg .node-circle:hover { filter: brightness(1.3); }
+#tree-svg .node-circle.selected {
+  stroke: #fff;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+#tree-svg .node-diamond {
+  cursor: pointer;
+  transition: all var(--transition);
+}
+#tree-svg .node-diamond:hover { filter: brightness(1.3); }
+#tree-svg .node-label {
+  font-size: 10px;
+  fill: var(--text-dim);
+  pointer-events: none;
+}
+#tree-svg .node-frame {
+  font-size: 9px;
+  fill: var(--text);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+/* ── Video Panel (Center) ───────────────────────────────────── */
+.panel-video { flex: 1; background: var(--bg); }
+.video-grid {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+.video-slot {
+  flex: 1;
+  background: var(--panel);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  transition: border-color var(--transition);
+}
+.video-slot.active { border-color: var(--accent); }
+.video-slot-header {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.video-slot-header .session-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.video-frame-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a14;
+  position: relative;
+  min-height: 180px;
+}
+.video-frame-container img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.video-frame-container .placeholder {
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: center;
+}
+.video-frame-container .placeholder svg { margin-bottom: 8px; opacity: 0.3; }
+.frame-counter {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  background: rgba(0,0,0,0.7);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.scrubber-bar {
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.scrubber-bar input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  border: none;
+  padding: 0;
+}
+.scrubber-bar input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.btn-icon {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 0;
+  font-size: 14px;
+}
+.btn-icon:hover { background: var(--border); }
+.frame-label {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  min-width: 50px;
+  text-align: right;
+}
+
+/* ── Control Panel (Right) ──────────────────────────────────── */
+.panel-control { width: 25%; min-width: 240px; }
+.panel-control .panel-body { gap: 0; }
+.ctrl-section {
+  margin-bottom: 16px;
+}
+.ctrl-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.ctrl-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+.ctrl-row input[type="number"] { width: 60px; }
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), #0088cc);
+  color: #fff;
+}
+.btn-primary:hover { filter: brightness(1.15); box-shadow: 0 2px 12px var(--accent-glow); }
+.btn-secondary {
+  background: var(--panel-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger {
+  background: rgba(255,107,107,0.15);
+  color: var(--danger);
+  border: 1px solid rgba(255,107,107,0.3);
+}
+.btn-danger:hover { background: rgba(255,107,107,0.25); }
+.btn-success {
+  background: rgba(81,207,102,0.15);
+  color: var(--success);
+  border: 1px solid rgba(81,207,102,0.3);
+}
+.btn-success:hover { background: rgba(81,207,102,0.25); }
+.btn-warn {
+  background: rgba(255,212,59,0.15);
+  color: var(--warn);
+  border: 1px solid rgba(255,212,59,0.3);
+}
+.btn-warn:hover { background: rgba(255,212,59,0.25); }
+.btn-full { width: 100%; }
+.session-info {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.7;
+  margin-bottom: 8px;
+}
+.session-info .label { color: var(--text-dim); }
+.session-info .value { color: var(--text); font-weight: 600; }
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.toggle {
+  position: relative;
+  width: 40px; height: 22px;
+  background: var(--border);
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.toggle.on { background: var(--accent); }
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 16px; height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform var(--transition);
+}
+.toggle.on::after { transform: translateX(18px); }
+
+/* ── Modal / Dialog ─────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.modal-overlay.show { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  transform: translateY(20px);
+  transition: transform 0.25s ease;
+}
+.modal-overlay.show .modal { transform: translateY(0); }
+.modal h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  background: linear-gradient(90deg, var(--accent), #cc5de8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.modal label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  margin-top: 12px;
+}
+.modal input, .modal select, .modal textarea {
+  width: 100%;
+}
+.modal textarea { resize: vertical; min-height: 60px; }
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+/* ── Toast Notifications ────────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: toastIn 0.3s ease forwards;
+  max-width: 360px;
+}
+.toast.error { border-left: 3px solid var(--danger); }
+.toast.success { border-left: 3px solid var(--success); }
+.toast.info { border-left: 3px solid var(--accent); }
+.toast.removing { animation: toastOut 0.25s ease forwards; }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(40px); }
+}
+
+/* ── Spinner ────────────────────────────────────────────────── */
+.spinner {
+  width: 24px; height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10,10,20,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  z-index: 5;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ Header ═══ -->
+<div class="header">
+  <h1>◈ Arc Fabric</h1>
+  <div class="status">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Connecting…</span>
+  </div>
+</div>
+
+<!-- ═══ Main Layout ═══ -->
+<div class="main">
+
+  <!-- ── Left: Trajectory Tree ── -->
+  <div class="panel panel-tree">
+    <div class="panel-header">
+      <span>Trajectory Tree</span>
+      <button class="btn-icon" onclick="refreshTree()" title="Refresh">↻</button>
+    </div>
+    <div class="panel-body">
+      <svg id="tree-svg"></svg>
+    </div>
+  </div>
+
+  <!-- ── Center: Video Comparison ── -->
+  <div class="panel panel-video">
+    <div class="panel-header">
+      <span>Video Comparison</span>
+      <button class="btn-secondary" onclick="compareLeafBranches()" style="font-size:11px;padding:4px 10px;">
+        Compare Branches
+      </button>
+    </div>
+    <div class="panel-body" style="display:flex;flex-direction:column;gap:12px;">
+      <div class="video-grid" id="videoGrid">
+        <!-- Slots injected by JS -->
+      </div>
+      <div class="scrubber-bar">
+        <button class="btn-icon" id="playBtn" onclick="togglePlay()">▶</button>
+        <input type="range" id="frameScrubber" min="0" max="0" value="0" oninput="onScrub(this.value)">
+        <span class="frame-label" id="frameLabel">0 / 0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right: Control Panel ── -->
+  <div class="panel panel-control">
+    <div class="panel-header"><span>Controls</span></div>
+    <div class="panel-body">
+
+      <!-- Session Management -->
+      <div class="ctrl-section">
+        <div class="ctrl-section-title">Session</div>
+        <div class="ctrl-row">
+          <select id="sessionSelect" style="flex:1" onchange="selectSession(this.value)">
+            <option value="">— no sessions —</option>
+          </select>
+          <button class="btn-primary" onclick="showNewSessionModal()">+ New</button>
+        </div>
+        <div class="session-info" id="sessionInfo">
+          <span class="label">Select or create a session to begin.</span>
+        </div>
+      </div>
+
+      <!-- Generation Controls -->
+      <div class="ctrl-section">
+        <div class="ctrl-section-title">Generation</div>
+        <div class="ctrl-row">
+          <button class="btn-success btn-full" onclick="stepSession()" id="btnStep">Step</button>
+        </div>
+        <div class="ctrl-row">
+          <input type="number" id="stepN" value="4" min="1" max="50">
+          <button class="btn-success" style="flex:1" onclick="stepN()" id="btnStepN">Step N</button>
+        </div>
+        <div class="ctrl-row toggle-row" style="margin-top:4px;">
+          <span>Auto-step (2 s)</span>
+          <div class="toggle" id="autoStepToggle" onclick="toggleAutoStep()"></div>
+        </div>
+      </div>
+
+      <!-- Branching Controls -->
+      <div class="ctrl-section">
+        <div class="ctrl-section-title">Branching</div>
+        <div class="ctrl-row">
+          <button class="btn-warn btn-full" onclick="showForkModal()">⑂ Fork</button>
+        </div>
+        <div class="ctrl-row">
+          <input type="number" id="rewindN" value="1" min="1" max="50">
+          <button class="btn-danger" style="flex:1" onclick="rewindSession()">↺ Rewind</button>
+        </div>
+      </div>
+
+      <!-- View Controls -->
+      <div class="ctrl-section">
+        <div class="ctrl-section-title">View</div>
+        <div class="ctrl-row">
+          <button class="btn-secondary btn-full" onclick="compareLeafBranches()">Compare Branches</button>
+        </div>
+        <div class="ctrl-row">
+          <button class="btn-secondary btn-full" onclick="refreshTree()">Refresh Tree</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Modals ═══ -->
+<div class="modal-overlay" id="newSessionModal">
+  <div class="modal">
+    <h3>Create New Session</h3>
+    <label>Prompt</label>
+    <textarea id="newPrompt" placeholder="e.g. pick up the red cup"></textarea>
+    <label>Initial Frame (optional)</label>
+    <input type="file" id="newFrame" accept="image/*" style="padding:8px">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('newSessionModal')">Cancel</button>
+      <button class="btn-primary" onclick="createSession()">Create</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="forkModal">
+  <div class="modal">
+    <h3>Fork Session</h3>
+    <label>Checkpoint to fork from</label>
+    <select id="forkCheckpoint" style="width:100%"></select>
+    <label>New prompt (optional — blank keeps current)</label>
+    <textarea id="forkPrompt" placeholder="New prompt…"></textarea>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('forkModal')">Cancel</button>
+      <button class="btn-warn" onclick="executeFork()">Fork</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Toasts ═══ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- ═══  JavaScript  ═══ -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<script>
+"use strict";
+
+/* ── Constants ──────────────────────────────────────────────── */
+const SESSION_COLORS = ['#00d2ff','#ff6b6b','#51cf66','#ffd43b','#cc5de8'];
+const API = '';
+
+/* ── State ──────────────────────────────────────────────────── */
+let sessions = [];
+let activeSessionId = null;
+let activeSession = null;
+let treeData = null;
+let selectedNodeId = null;
+let comparisonSlots = []; // up to 3 {sessionId, maxFrame}
+let currentFrame = 0;
+let maxFrame = 0;
+let playing = false;
+let playInterval = null;
+let autoStepping = false;
+let autoStepTimer = null;
+let serverOnline = false;
+
+/* ── Toasts ─────────────────────────────────────────────────── */
+function toast(msg, type = 'info') {
+  const c = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => { el.classList.add('removing'); setTimeout(() => el.remove(), 300); }, 4000);
+}
+
+/* ── Modal helpers ──────────────────────────────────────────── */
+function showModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function showNewSessionModal() { showModal('newSessionModal'); }
+function showForkModal() {
+  populateCheckpointDropdown();
+  showModal('forkModal');
+}
+
+/* ── API helpers ────────────────────────────────────────────── */
+async function api(path, opts = {}) {
+  try {
+    const resp = await fetch(API + path, {
+      headers: { 'Content-Type': 'application/json', ...opts.headers },
+      ...opts,
+    });
+    if (!resp.ok) {
+      const detail = await resp.text();
+      throw new Error(`${resp.status}: ${detail}`);
+    }
+    const ct = resp.headers.get('content-type') || '';
+    return ct.includes('json') ? resp.json() : resp.text();
+  } catch (e) {
+    toast(e.message, 'error');
+    throw e;
+  }
+}
+
+function frameUrl(sessionId, frameIndex) {
+  return `${API}/api/sessions/${sessionId}/frames/${frameIndex}`;
+}
+
+/* ── Session CRUD ───────────────────────────────────────────── */
+async function fetchSessions() {
+  try {
+    sessions = await api('/api/sessions');
+    if (!Array.isArray(sessions)) sessions = [];
+    serverOnline = true;
+  } catch {
+    sessions = [];
+    serverOnline = false;
+    useMockData();
+  }
+  updateStatus();
+  renderSessionDropdown();
+}
+
+async function createSession() {
+  const prompt = document.getElementById('newPrompt').value.trim() || 'default prompt';
+  closeModal('newSessionModal');
+  try {
+    const result = await api('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ prompt, initial_frame_path: '' }),
+    });
+    toast(`Session created: ${result.session_id || result.id}`, 'success');
+    await fetchSessions();
+    selectSession(result.session_id || result.id);
+  } catch { /* toast already shown */ }
+}
+
+async function selectSession(id) {
+  if (!id) return;
+  activeSessionId = id;
+  document.getElementById('sessionSelect').value = id;
+  try {
+    activeSession = await api(`/api/sessions/${id}`);
+  } catch {
+    activeSession = sessions.find(s => (s.session_id || s.id) === id) || null;
+  }
+  renderSessionInfo();
+  refreshTree();
+}
+
+function renderSessionDropdown() {
+  const sel = document.getElementById('sessionSelect');
+  sel.innerHTML = sessions.length === 0
+    ? '<option value="">— no sessions —</option>'
+    : sessions.map((s, i) => {
+        const sid = s.session_id || s.id;
+        return `<option value="${sid}" style="color:${SESSION_COLORS[i % 5]}">
+          ${sid.slice(0, 8)}… — ${(s.prompt || '').slice(0, 24)}
+        </option>`;
+      }).join('');
+  if (activeSessionId) sel.value = activeSessionId;
+}
+
+function renderSessionInfo() {
+  const el = document.getElementById('sessionInfo');
+  if (!activeSession) {
+    el.innerHTML = '<span class="label">Select or create a session to begin.</span>';
+    return;
+  }
+  const s = activeSession;
+  const sid = s.session_id || s.id || '—';
+  const idx = sessions.findIndex(x => (x.session_id || x.id) === sid);
+  const color = SESSION_COLORS[idx % 5] || SESSION_COLORS[0];
+  el.innerHTML = `
+    <div><span class="label">ID:</span> <span class="value" style="color:${color}">${sid.slice(0,12)}</span></div>
+    <div><span class="label">Prompt:</span> <span class="value">${s.prompt || '—'}</span></div>
+    <div><span class="label">Frame:</span> <span class="value">${s.frame_index ?? 0}</span></div>
+    <div><span class="label">Checkpoints:</span> <span class="value">${(s.checkpoint_ids || []).length}</span></div>
+  `;
+}
+
+/* ── Generation ─────────────────────────────────────────────── */
+async function stepSession() {
+  if (!activeSessionId) return toast('Select a session first', 'error');
+  document.getElementById('btnStep').disabled = true;
+  try {
+    await api(`/api/sessions/${activeSessionId}/step`, { method: 'POST', body: '{}' });
+    toast('Stepped +1 frame', 'success');
+    await selectSession(activeSessionId);
+  } catch { /* handled */ }
+  document.getElementById('btnStep').disabled = false;
+}
+
+async function stepN() {
+  const n = parseInt(document.getElementById('stepN').value) || 1;
+  if (!activeSessionId) return toast('Select a session first', 'error');
+  document.getElementById('btnStepN').disabled = true;
+  for (let i = 0; i < n; i++) {
+    try {
+      await api(`/api/sessions/${activeSessionId}/step`, { method: 'POST', body: '{}' });
+    } catch { break; }
+  }
+  toast(`Stepped +${n} frames`, 'success');
+  await selectSession(activeSessionId);
+  document.getElementById('btnStepN').disabled = false;
+}
+
+function toggleAutoStep() {
+  autoStepping = !autoStepping;
+  document.getElementById('autoStepToggle').classList.toggle('on', autoStepping);
+  if (autoStepping) {
+    autoStepTimer = setInterval(() => stepSession(), 2000);
+  } else {
+    clearInterval(autoStepTimer);
+    autoStepTimer = null;
+  }
+}
+
+/* ── Branching ──────────────────────────────────────────────── */
+async function populateCheckpointDropdown() {
+  const sel = document.getElementById('forkCheckpoint');
+  sel.innerHTML = '<option value="">loading…</option>';
+  if (!activeSession) return;
+  const cps = activeSession.checkpoint_ids || [];
+  if (cps.length === 0) {
+    sel.innerHTML = '<option value="">no checkpoints</option>';
+    return;
+  }
+  sel.innerHTML = cps.map((cp, i) => `<option value="${cp}">Frame ${i}: ${cp.slice(0,10)}…</option>`).join('');
+}
+
+async function executeFork() {
+  if (!activeSessionId) return;
+  const checkpointId = document.getElementById('forkCheckpoint').value;
+  const newPrompt = document.getElementById('forkPrompt').value.trim();
+  closeModal('forkModal');
+  if (!checkpointId) return toast('Select a checkpoint', 'error');
+  try {
+    const body = { checkpoint_id: checkpointId };
+    if (newPrompt) body.new_prompt = newPrompt;
+    const result = await api(`/api/sessions/${activeSessionId}/fork`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    toast(`Forked → ${(result.session_id || result.id || '').slice(0,10)}`, 'success');
+    await fetchSessions();
+    refreshTree();
+  } catch { /* handled */ }
+}
+
+async function rewindSession() {
+  if (!activeSessionId) return toast('Select a session first', 'error');
+  const n = parseInt(document.getElementById('rewindN').value) || 1;
+  try {
+    await api(`/api/sessions/${activeSessionId}/rewind`, {
+      method: 'POST',
+      body: JSON.stringify({ n_steps: n }),
+    });
+    toast(`Rewound ${n} steps`, 'success');
+    await selectSession(activeSessionId);
+  } catch { /* handled */ }
+}
+
+/* ── Tree ───────────────────────────────────────────────────── */
+async function refreshTree() {
+  if (!activeSessionId && sessions.length === 0) {
+    renderTree(getMockTree());
+    return;
+  }
+  if (!activeSessionId && sessions.length > 0) {
+    selectSession(sessions[0].session_id || sessions[0].id);
+    return;
+  }
+  try {
+    const data = await api(`/api/sessions/${activeSessionId}/tree`);
+    treeData = data;
+    renderTree(data);
+  } catch {
+    renderTree(getMockTree());
+  }
+}
+
+function renderTree(data) {
+  const svg = d3.select('#tree-svg');
+  svg.selectAll('*').remove();
+
+  const container = svg.node().parentElement;
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  svg.attr('viewBox', `0 0 ${width} ${height}`);
+
+  const root = d3.hierarchy(data, d => d.children);
+  const treeLayout = d3.tree().size([width - 60, height - 80]);
+  treeLayout(root);
+
+  const g = svg.append('g').attr('transform', 'translate(30, 40)');
+
+  // Links
+  g.selectAll('.link')
+    .data(root.links())
+    .join('path')
+    .attr('class', 'link')
+    .attr('d', d3.linkVertical().x(d => d.x).y(d => d.y))
+    .attr('stroke', d => getNodeColor(d.target.data));
+
+  // Nodes
+  const nodes = g.selectAll('.node')
+    .data(root.descendants())
+    .join('g')
+    .attr('class', 'node')
+    .attr('transform', d => `translate(${d.x},${d.y})`)
+    .on('click', (e, d) => onNodeClick(d.data));
+
+  // Fork nodes → diamond, regular nodes → circle
+  nodes.each(function(d) {
+    const el = d3.select(this);
+    const isFork = (d.data.children && d.data.children.length > 1);
+    const color = getNodeColor(d.data);
+    const isSelected = d.data.id === selectedNodeId;
+
+    if (isFork) {
+      el.append('rect')
+        .attr('class', 'node-diamond' + (isSelected ? ' selected' : ''))
+        .attr('width', 16).attr('height', 16)
+        .attr('x', -8).attr('y', -8)
+        .attr('rx', 3)
+        .attr('transform', 'rotate(45)')
+        .attr('fill', color)
+        .attr('stroke', isSelected ? '#fff' : 'transparent')
+        .attr('stroke-width', isSelected ? 3 : 0)
+        .style('filter', isSelected ? `drop-shadow(0 0 6px ${color})` : '');
+    } else {
+      el.append('circle')
+        .attr('class', 'node-circle' + (isSelected ? ' selected' : ''))
+        .attr('r', isSelected ? 8 : 6)
+        .attr('fill', color)
+        .attr('stroke', isSelected ? '#fff' : 'rgba(255,255,255,0.15)')
+        .style('filter', isSelected ? `drop-shadow(0 0 8px ${color})` : '');
+    }
+  });
+
+  // Frame labels
+  nodes.append('text')
+    .attr('class', 'node-frame')
+    .attr('dy', -14)
+    .attr('text-anchor', 'middle')
+    .text(d => `f${d.data.frame_index ?? d.data.frame ?? d.depth}`);
+
+  // Prompt snippet labels
+  nodes.append('text')
+    .attr('class', 'node-label')
+    .attr('dy', 22)
+    .attr('text-anchor', 'middle')
+    .text(d => {
+      const p = d.data.prompt || d.data.name || '';
+      return p.length > 16 ? p.slice(0, 15) + '…' : p;
+    });
+}
+
+function getNodeColor(d) {
+  const sid = d.session_id || d.session || '';
+  const idx = sessions.findIndex(s => (s.session_id || s.id) === sid);
+  return SESSION_COLORS[idx >= 0 ? idx % 5 : 0];
+}
+
+function onNodeClick(d) {
+  selectedNodeId = d.id || d.checkpoint_id;
+  renderTree(treeData || getMockTree());
+  toast(`Selected node: frame ${d.frame_index ?? d.frame ?? '?'}`, 'info');
+}
+
+/* ── Video Comparison ───────────────────────────────────────── */
+function initVideoSlots() {
+  const grid = document.getElementById('videoGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    grid.innerHTML += `
+      <div class="video-slot" id="vslot${i}">
+        <div class="video-slot-header">
+          <div class="session-dot" id="vdot${i}" style="background:#444"></div>
+          <span id="vlabel${i}">Slot ${i + 1}</span>
+        </div>
+        <div class="video-frame-container" id="vframe${i}">
+          <div class="placeholder">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="2" width="20" height="20" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="M21 15l-5-5L5 21"/>
+            </svg>
+            <div>No frame loaded</div>
+          </div>
+        </div>
+      </div>`;
+  }
+}
+
+function updateVideoSlot(index, sessionId, frameIndex) {
+  if (index < 0 || index > 2) return;
+  const dot = document.getElementById(`vdot${index}`);
+  const label = document.getElementById(`vlabel${index}`);
+  const frame = document.getElementById(`vframe${index}`);
+  const slot = document.getElementById(`vslot${index}`);
+
+  const sIdx = sessions.findIndex(s => (s.session_id || s.id) === sessionId);
+  const color = SESSION_COLORS[sIdx >= 0 ? sIdx % 5 : index % 5];
+  dot.style.background = color;
+  label.textContent = `${(sessionId || 'mock').slice(0,8)}… · f${frameIndex}`;
+  slot.classList.add('active');
+
+  const url = serverOnline
+    ? frameUrl(sessionId, frameIndex)
+    : `data:image/svg+xml,${encodeURIComponent(placeholderSVG(frameIndex, color))}`;
+
+  frame.innerHTML = `
+    <img src="${url}" alt="Frame ${frameIndex}" onerror="this.src='data:image/svg+xml,${encodeURIComponent(placeholderSVG(frameIndex, color))}'">
+    <div class="frame-counter">f${frameIndex}</div>`;
+}
+
+function placeholderSVG(frame, color) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#0f0f1a"/>
+    </linearGradient></defs>
+    <rect width="320" height="240" fill="url(#g)"/>
+    <text x="160" y="110" text-anchor="middle" fill="white" font-size="32" font-family="system-ui" opacity="0.6">f${frame}</text>
+    <text x="160" y="145" text-anchor="middle" fill="white" font-size="13" font-family="system-ui" opacity="0.3">placeholder frame</text>
+  </svg>`;
+}
+
+async function compareLeafBranches() {
+  const tree = treeData || getMockTree();
+  const leaves = [];
+  function findLeaves(node) {
+    if (!node.children || node.children.length === 0) { leaves.push(node); return; }
+    node.children.forEach(findLeaves);
+  }
+  findLeaves(tree);
+
+  comparisonSlots = leaves.slice(0, 3);
+  maxFrame = Math.max(...comparisonSlots.map(n => n.frame_index ?? n.frame ?? 0), 1);
+  currentFrame = 0;
+
+  const scrubber = document.getElementById('frameScrubber');
+  scrubber.max = maxFrame;
+  scrubber.value = 0;
+
+  comparisonSlots.forEach((leaf, i) => {
+    const sid = leaf.session_id || leaf.session || activeSessionId || 'mock';
+    updateVideoSlot(i, sid, 0);
+  });
+  updateFrameLabel();
+  toast(`Comparing ${comparisonSlots.length} branches`, 'info');
+}
+
+function onScrub(val) {
+  currentFrame = parseInt(val);
+  comparisonSlots.forEach((leaf, i) => {
+    const sid = leaf.session_id || leaf.session || activeSessionId || 'mock';
+    const f = Math.min(currentFrame, leaf.frame_index ?? leaf.frame ?? 0);
+    updateVideoSlot(i, sid, f);
+  });
+  updateFrameLabel();
+}
+
+function updateFrameLabel() {
+  document.getElementById('frameLabel').textContent = `${currentFrame} / ${maxFrame}`;
+}
+
+function togglePlay() {
+  playing = !playing;
+  document.getElementById('playBtn').textContent = playing ? '⏸' : '▶';
+  if (playing) {
+    playInterval = setInterval(() => {
+      if (currentFrame >= maxFrame) { togglePlay(); return; }
+      currentFrame++;
+      document.getElementById('frameScrubber').value = currentFrame;
+      onScrub(currentFrame);
+    }, 300);
+  } else {
+    clearInterval(playInterval);
+    playInterval = null;
+  }
+}
+
+/* ── Mock data (works without server) ───────────────────────── */
+function useMockData() {
+  sessions = [
+    { session_id: 'sess-alpha-001', id: 'sess-alpha-001', prompt: 'pick up the red cup', frame_index: 16, checkpoint_ids: ['cp0','cp1','cp2','cp3','cp4','cp5','cp6','cp7','cp8'] },
+    { session_id: 'sess-beta-002', id: 'sess-beta-002', prompt: 'push cup to the left', frame_index: 16, checkpoint_ids: ['cpB0','cpB1','cpB2','cpB3','cpB4'] },
+    { session_id: 'sess-gamma-003', id: 'sess-gamma-003', prompt: 'pick up the red cup (seed 42)', frame_index: 16, checkpoint_ids: ['cpC0','cpC1','cpC2'] },
+  ];
+  activeSessionId = sessions[0].session_id;
+  activeSession = sessions[0];
+}
+
+function getMockTree() {
+  return {
+    id: 'root', checkpoint_id: 'cp0', session_id: 'sess-alpha-001', session: 'sess-alpha-001',
+    frame_index: 0, prompt: 'pick up the red cup', children: [
+      { id: 'n1', session_id: 'sess-alpha-001', session: 'sess-alpha-001', frame_index: 2, prompt: 'pick up the red cup', children: [
+        { id: 'n2', session_id: 'sess-alpha-001', session: 'sess-alpha-001', frame_index: 4, prompt: 'pick up the red cup', children: [
+          { id: 'n3', session_id: 'sess-alpha-001', session: 'sess-alpha-001', frame_index: 6, prompt: 'pick up the red cup', children: [
+            { id: 'n4', session_id: 'sess-alpha-001', session: 'sess-alpha-001', frame_index: 8, prompt: 'pick up the red cup', children: [
+              // Fork point!
+              { id: 'fA1', session_id: 'sess-alpha-001', session: 'sess-alpha-001', frame_index: 10, prompt: 'pick up the red cup', children: [
+                { id: 'fA2', session_id: 'sess-alpha-001', session: 'sess-alpha-001', frame_index: 12, prompt: 'pick up the red cup', children: [
+                  { id: 'fA3', session_id: 'sess-alpha-001', session: 'sess-alpha-001', frame_index: 14, prompt: 'pick up the red cup', children: [
+                    { id: 'fA4', session_id: 'sess-alpha-001', session: 'sess-alpha-001', frame_index: 16, prompt: 'pick up the red cup', children: [] }
+                  ]}
+                ]}
+              ]},
+              { id: 'fB1', session_id: 'sess-beta-002', session: 'sess-beta-002', frame_index: 10, prompt: 'push cup to the left', children: [
+                { id: 'fB2', session_id: 'sess-beta-002', session: 'sess-beta-002', frame_index: 12, prompt: 'push cup to the left', children: [
+                  { id: 'fB3', session_id: 'sess-beta-002', session: 'sess-beta-002', frame_index: 14, prompt: 'push cup to the left', children: [
+                    { id: 'fB4', session_id: 'sess-beta-002', session: 'sess-beta-002', frame_index: 16, prompt: 'push cup to the left', children: [] }
+                  ]}
+                ]}
+              ]},
+              { id: 'fC1', session_id: 'sess-gamma-003', session: 'sess-gamma-003', frame_index: 10, prompt: 'pick up (seed 42)', children: [
+                { id: 'fC2', session_id: 'sess-gamma-003', session: 'sess-gamma-003', frame_index: 12, prompt: 'pick up (seed 42)', children: [
+                  { id: 'fC3', session_id: 'sess-gamma-003', session: 'sess-gamma-003', frame_index: 14, prompt: 'pick up (seed 42)', children: [
+                    { id: 'fC4', session_id: 'sess-gamma-003', session: 'sess-gamma-003', frame_index: 16, prompt: 'pick up (seed 42)', children: [] }
+                  ]}
+                ]}
+              ]}
+            ]}
+          ]}
+        ]}
+      ]}
+    ]
+  };
+}
+
+/* ── Server status ──────────────────────────────────────────── */
+function updateStatus() {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  if (serverOnline) {
+    dot.classList.remove('offline');
+    text.textContent = `Online · ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`;
+  } else {
+    dot.classList.add('offline');
+    text.textContent = 'Mock mode (server offline)';
+  }
+}
+
+/* ── Init ───────────────────────────────────────────────────── */
+async function init() {
+  initVideoSlots();
+  await fetchSessions();
+
+  if (sessions.length > 0) {
+    selectSession(sessions[0].session_id || sessions[0].id);
+  } else {
+    renderTree(getMockTree());
+  }
+
+  renderSessionDropdown();
+  renderSessionInfo();
+  compareLeafBranches();
+}
+
+init();
+</script>
+</body>
+</html>
